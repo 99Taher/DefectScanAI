@@ -113,7 +113,7 @@ function App() {
         </div>
         <div className="header-badge">
           <div className="badge-dot" />
-          Cloud-Native · YOLO · Azure
+          Cloud-Native test· YOLO · Azure
         </div>
       </header>
 
@@ -215,7 +215,7 @@ function App() {
         {/* Results */}
         {phase === 'done' && result && (
           <>
-            <div className="status-bar done-clean" style={isDefect ? {borderColor:'rgba(239,68,68,0.3)', background:'rgba(239,68,68,0.05)'} : {}}>
+            <div className="status-bar done-clean" style={isDefect ? { borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)' } : {}}>
               <span className="status-icon">{isDefect ? '🔴' : '🟢'}</span>
               <div className="status-info">
                 <div className="status-title">
