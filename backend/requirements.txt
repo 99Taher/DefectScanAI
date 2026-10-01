@@ -1,0 +1,5 @@
+fastapi
+uvicorn>=0.31.1
+python-multipart
+azure-storage-blob
+azure-servicebus

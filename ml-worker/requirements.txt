@@ -1,0 +1,5 @@
+ultralytics
+azure-storage-blob
+azure-servicebus
+Pillow
+opencv-python-headless

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-worker
+  template:
+    metadata:
+      labels:
+        app: ml-worker
+    spec:
+      containers:
+      - name: ml-worker
+        image: defectdetectionacr.azurecr.io/ml-worker:latest
+        imagePullPolicy: Always
+        envFrom:
+        - secretRef:
+            name: azure-secrets

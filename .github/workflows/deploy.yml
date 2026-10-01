@@ -1,0 +1,70 @@
+name: Build and Deploy to AKS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual triggering from the GitHub UI
+
+env:
+  REGISTRY_NAME: defectdetectionacr
+  CLUSTER_NAME: defectdetection-aks
+  CLUSTER_RESOURCE_GROUP: defect-detection-rg
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        
+    - name: Log in to Azure Container Registry
+      run: |
+        az acr login --name ${{ env.REGISTRY_NAME }}
+        
+    - name: Build and Push Backend Image
+      run: |
+        docker build -t ${{ env.REGISTRY_NAME }}.azurecr.io/backend:${{ github.sha }} -t ${{ env.REGISTRY_NAME }}.azurecr.io/backend:latest ./backend
+        docker push ${{ env.REGISTRY_NAME }}.azurecr.io/backend:${{ github.sha }}
+        docker push ${{ env.REGISTRY_NAME }}.azurecr.io/backend:latest
+        
+    - name: Build and Push ML Worker Image
+      run: |
+        docker build -t ${{ env.REGISTRY_NAME }}.azurecr.io/ml-worker:${{ github.sha }} -t ${{ env.REGISTRY_NAME }}.azurecr.io/ml-worker:latest ./ml-worker
+        docker push ${{ env.REGISTRY_NAME }}.azurecr.io/ml-worker:${{ github.sha }}
+        docker push ${{ env.REGISTRY_NAME }}.azurecr.io/ml-worker:latest
+        
+    - name: Build and Push Frontend Image
+      run: |
+        docker build --build-arg VITE_API_BASE=/api -t ${{ env.REGISTRY_NAME }}.azurecr.io/frontend:${{ github.sha }} -t ${{ env.REGISTRY_NAME }}.azurecr.io/frontend:latest ./frontend
+        docker push ${{ env.REGISTRY_NAME }}.azurecr.io/frontend:${{ github.sha }}
+        docker push ${{ env.REGISTRY_NAME }}.azurecr.io/frontend:latest
+
+    - name: Get AKS Credentials
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: ${{ env.CLUSTER_RESOURCE_GROUP }}
+        cluster-name: ${{ env.CLUSTER_NAME }}
+        
+    - name: Deploy to Kubernetes
+      run: |
+        # Safely create or update the Azure Connection Strings as a Kubernetes Secret
+        kubectl create secret generic azure-secrets \
+          --from-literal=AZURE_STORAGE_CONNECTION_STRING="${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+          --from-literal=AZURE_SERVICEBUS_CONNECTION_STRING="${{ secrets.AZURE_SERVICEBUS_CONNECTION_STRING }}" \
+          --from-literal=SERVICEBUS_QUEUE_NAME="${{ secrets.SERVICEBUS_QUEUE_NAME }}" \
+          --dry-run=client -o yaml | kubectl apply -f -
+          
+        # Apply all Kubernetes manifests (Deployments & Services)
+        kubectl apply -f k8s/
+
+        # Force deployments to use the exact new image tag for this commit
+        kubectl set image deployment/backend backend=${{ env.REGISTRY_NAME }}.azurecr.io/backend:${{ github.sha }}
+        kubectl set image deployment/ml-worker ml-worker=${{ env.REGISTRY_NAME }}.azurecr.io/ml-worker:${{ github.sha }}
+        kubectl set image deployment/frontend frontend=${{ env.REGISTRY_NAME }}.azurecr.io/frontend:${{ github.sha }}
