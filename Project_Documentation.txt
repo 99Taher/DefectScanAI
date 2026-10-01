@@ -1,0 +1,96 @@
+================================================================================
+                                DEFECTSCAN AI
+               Cloud-Native Industrial Defect Detection System
+================================================================================
+
+PROJECT OVERVIEW
+--------------------------------------------------------------------------------
+DefectScan AI is a complete, cloud-native enterprise application for industrial 
+defect detection. It utilizes deep learning (YOLO) to identify manufacturing 
+defects in real-time. It is built on a highly scalable, asynchronous microservices 
+architecture deployed on Azure Kubernetes Service (AKS).
+
+
+SYSTEM ARCHITECTURE
+--------------------------------------------------------------------------------
+The project is broken down into decoupled microservices communicating 
+asynchronously to handle heavy machine learning workloads without blocking the 
+user interface.
+
+Workflow:
+1. Upload: The React Frontend sends a raw image to the Nginx Proxy, which routes it to the FastAPI Backend.
+2. Storage: The Backend uploads the raw image to an Azure Blob Storage container ("uploads").
+3. Queueing: The Backend pushes a message containing the Job ID to the Azure Service Bus queue ("defect-jobs") and returns the Job ID to the user.
+4. Inference: The ML Worker (running in the background) pulls the message from the Service Bus, downloads the image, and runs it through the YOLO Neural Network.
+5. Save Results: The ML Worker draws bounding boxes around defects and saves the annotated image and JSON results back to Azure Blob Storage ("results").
+6. Polling: Meanwhile, the React Frontend polls the Backend for results. Once the results are available in Blob Storage, the Backend returns them to the user.
+
+
+TECHNOLOGY STACK & FRAMEWORKS
+--------------------------------------------------------------------------------
+
+1. Frontend (Client Tier)
+   * Framework: React 18
+   * Build Tool: Vite
+   * Styling: Vanilla CSS with premium Glassmorphism design features.
+   * Server: Nginx (used in production as a reverse proxy to route /api traffic to the backend, bypassing CORS and single Public IP limits).
+
+2. Backend (API Tier)
+   * Framework: FastAPI (Python)
+   * Server: Uvicorn
+   * Cloud SDKs: Azure Storage Blob SDK, Azure Service Bus SDK
+   * Role: Acts as the gateway, providing rapid asynchronous endpoints for uploading files and checking statuses without doing the heavy ML lifting.
+
+3. ML Worker (Compute Tier)
+   * Language: Python 3.10
+   * Deep Learning: Ultralytics YOLOv8, PyTorch
+   * Computer Vision: OpenCV (cv2)
+   * Role: A continuous background process that pulls jobs from the Service Bus, runs the intense neural network inference, and uploads results.
+
+4. Cloud Infrastructure (Microsoft Azure)
+   * Storage: Azure Blob Storage (Decouples data from the application layer).
+   * Messaging: Azure Service Bus (Enterprise message broker to prevent system crashes under heavy load).
+   * Registry: Azure Container Registry (ACR) to host custom Docker images.
+   * Orchestration: Azure Kubernetes Service (AKS) to manage the containers, handle networking (LoadBalancers/ClusterIP), and ensure high availability.
+
+5. DevOps & Infrastructure as Code (IaC)
+   * Containerization: Docker (Multi-stage builds) & Docker Compose (Local dev)
+   * Deployment: Kubernetes YAML Manifests
+   * Automation: GitHub Actions CI/CD (Automatically builds and pushes containers to AKS upon every Git push).
+   * Infrastructure as Code: Terraform (Programmatically provisions all Azure resources).
+
+
+REPOSITORY STRUCTURE
+--------------------------------------------------------------------------------
+defectdetectionproject/
+|
++-- backend/                [FastAPI application]
+|   |-- main.py             (API routes and Azure integration)
+|   |-- requirements.txt    
+|   +-- Dockerfile          (Python 3.10 slim image)
+|
++-- frontend/               [React application]
+|   |-- src/                (React components and CSS)
+|   |-- nginx.conf          (Custom Nginx proxy configuration)
+|   +-- Dockerfile          (Multi-stage Node.js build to Nginx Alpine)
+|
++-- ml-worker/              [Deep Learning Inference Worker]
+|   |-- worker.py           (Polling loop pulling from Service Bus)
+|   |-- best_defect_model.pt(Trained YOLO weights)
+|   +-- Dockerfile          (PyTorch + OpenCV environment)
+|
++-- k8s/                    [Kubernetes Manifests]
+|   |-- backend.yaml        (ClusterIP service and deployment)
+|   |-- ml-worker.yaml      (Worker deployment)
+|   +-- frontend.yaml       (LoadBalancer service and deployment)
+|
++-- terraform/              [Infrastructure as Code]
+|   |-- main.tf             (Resource definitions: AKS, ACR, Storage, etc.)
+|   |-- variables.tf        
+|   +-- providers.tf        
+|
++-- .github/workflows/      [CI/CD]
+|   +-- deploy.yml          (Automated build and AKS deployment pipeline)
+|
++-- docker-compose.yml      [Local orchestration]
+================================================================================
